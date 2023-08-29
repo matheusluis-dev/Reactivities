@@ -4,119 +4,132 @@ import agent from "../api/agent";
 import { v4 as uuid } from 'uuid';
 
 export default class ActivityStore {
-    activityRegistry = new Map<string, Activity>();
-    selectedActivity: Activity | undefined = undefined;
-    editMode = false;
-    loading = false;
-    loadingInitial = true;
+  activityRegistry = new Map<string, Activity>();
+  selectedActivity: Activity | undefined = undefined;
+  editMode = false;
+  loading = false;
+  loadingInitial = true;
 
-    constructor() {
-        makeAutoObservable(this)
+  constructor() {
+    makeAutoObservable(this)
+  }
+
+  get activitiesByDate() {
+    return Array.from(this.activityRegistry.values()).sort((a, b) =>
+      Date.parse(a.date) - Date.parse(b.date));
+  }
+
+  loadActivities = async () => {
+    this.setLoadingInitial(true);
+    try {
+      const activities = await agent.Activities.list();
+      activities.forEach(activity => {
+        this.setActivity(activity);
+      });
+
+      this.setLoadingInitial(false);
+    } catch (error) {
+      console.log(error);
+      this.setLoadingInitial(false);
     }
+  }
 
-    get activitiesByDate() {
-        return Array.from(this.activityRegistry.values()).sort((a, b) =>
-            Date.parse(a.date) - Date.parse(b.date));
+  loadActivity = async (id: string) => {
+    let activity = this.getActivity(id);
+
+    if (activity) {
+      this.selectedActivity = activity;
+      return activity;
     }
-
-    loadActivities = async () => {
-        try {
-            const activities = await agent.Activities.list();
-            activities.forEach(activity => {
-                activity.date = activity.date.split('T')[0];
-                this.activityRegistry.set(activity.id, activity);
-            });
-
-            this.setLoadingInitial(false);
-        } catch (error) {
-            console.log(error);
-            this.setLoadingInitial(false);
-        }
-    }
-
-    setLoadingInitial = (state: boolean) => {
+    else {
+      this.loadingInitial = true;
+      try {
+        activity = await agent.Activities.details(id);
+        this.setActivity(activity);
         runInAction(() => {
-            this.loadingInitial = state;
+          this.selectedActivity = activity;
         })
+        this.setLoadingInitial(false);
+        return activity;
+      } catch (error) {
+        console.log(error);
+        this.setLoadingInitial(false);
+      }
     }
+  }
 
-    selectActivity = (id: string) => {
-        this.selectedActivity = this.activityRegistry.get(id);
-    }
+  private getActivity = (id: string) => {
+    return this.activityRegistry.get(id);
+  }
 
-    cancelSelectedActivity = () => {
-        this.selectedActivity = undefined;
-    }
+  private setActivity = (activity: Activity) => {
+    activity.date = activity.date.split('T')[0];
+    this.activityRegistry.set(activity.id, activity);
+  }
 
-    openForm = (id?: string) => {
-        id ? this.selectActivity(id) : this.cancelSelectedActivity();
-        this.editMode = true;
-    }
+  setLoadingInitial = (state: boolean) => {
+    runInAction(() => {
+      this.loadingInitial = state;
+    })
+  }
 
-    closeForm = () => {
+  createActivity = async (activity: Activity) => {
+    this.loading = true;
+    activity.id = uuid();
+    try {
+      await agent.Activities.create(activity);
+
+      runInAction(() => {
+        this.activityRegistry.set(activity.id, activity);
+        this.selectedActivity = activity;
         this.editMode = false;
+        this.loading = false;
+      });
+    } catch (error) {
+      console.log(error);
+
+      runInAction(() => {
+        this.loading = false;
+      });
     }
+  }
 
-    createActivity = async (activity: Activity) => {
-        this.loading = true;
-        activity.id = uuid();
-        try {
-            await agent.Activities.create(activity);
+  updateActivity = async (activity: Activity) => {
+    this.loading = true;
+    try {
+      await agent.Activities.update(activity);
 
-            runInAction(() => {
-                this.activityRegistry.set(activity.id, activity);
-                this.selectedActivity = activity;
-                this.editMode = false;
-                this.loading = false;
-            });
-        } catch (error) {
-            console.log(error);
+      runInAction(() => {
+        this.activityRegistry.set(activity.id, activity);
+        this.selectedActivity = activity;
+        this.editMode = false;
+        this.loading = false;
+      })
+    } catch (error) {
+      console.log(error);
 
-            runInAction(() => {
-                this.loading = false;
-            });
-        }
+      runInAction(() => {
+        this.loading = false;
+      })
     }
+  }
 
-    updateActivity = async (activity: Activity) => {
-        this.loading = true;
-        try {
-            await agent.Activities.update(activity);
+  deleteActivity = async (id: string) => {
+    this.loading = true;
+    try {
+      await agent.Activities.delete(id);
 
-            runInAction(() => {
-                this.activityRegistry.set(activity.id, activity);
-                this.selectedActivity = activity;
-                this.editMode = false;
-                this.loading = false;
-            })
-        } catch (error) {
-            console.log(error);
-
-            runInAction(() => {
-                this.loading = false;
-            })
-        }
+      runInAction(() => {
+        this.activityRegistry.delete(id);
+        this.loading = false;
+      })
     }
+    catch (error) {
+      console.log(error);
 
-    deleteActivity = async (id: string) => {
-        this.loading = true;
-        try {
-            await agent.Activities.delete(id);
-
-            runInAction(() => {
-                this.activityRegistry.delete(id);
-
-                if(this.selectedActivity?.id === id) 
-                    this.cancelSelectedActivity();
-                this.loading = false;
-            })
-        }
-        catch (error) {
-            console.log(error);
-
-            runInAction(() => {
-                this.loading = false;
-            })
-        }
+      runInAction(() => {
+        this.loading = false;
+      })
     }
+  }
 }

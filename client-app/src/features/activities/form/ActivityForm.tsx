@@ -1,88 +1,106 @@
-import React, { ChangeEvent, useState } from 'react';
+import React, { ChangeEvent, useEffect, useState } from 'react';
 import { Button, Form, Segment } from 'semantic-ui-react';
 import { useStore } from '../../../app/stores/store';
 import { observer } from 'mobx-react-lite';
+import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Activity } from '../../../app/models/activity';
+import Loading from '../../../app/layout/Loading';
+import { v4 as uuid } from 'uuid';
 
 export default observer(function ActivityForm() {
-  const { activityStore } = useStore();
-  const { selectedActivity, closeForm, createActivity, updateActivity, loading } = activityStore;
+    const { activityStore } = useStore();
+    const { createActivity, updateActivity, loading, loadActivity, loadingInitial } = activityStore;
+    const { id } = useParams();
+    const navigate = useNavigate();
 
-  const initialActivity = selectedActivity ?? {
-    id: '',
-    title: '',
-    category: '',
-    description: '',
-    date: '',
-    city: '',
-    venue: ''
-  };
+    const [activity, setActivity] = useState<Activity>({
+        id: '',
+        title: '',
+        category: '',
+        description: '',
+        date: '',
+        city: '',
+        venue: ''
+    });
 
-  const [activity, setActivity] = useState(initialActivity);
+    useEffect(() => {
+        if (id) loadActivity(id).then(activity => setActivity(activity!));
+    }, [id, loadActivity]);
 
-  const handleSubmit = () => {
-    activity.id ? updateActivity(activity) : createActivity(activity);
-  };
+    const handleSubmit = () => {
+        if (activity.id) {
+            updateActivity(activity).then(() => navigate(`/activities/${activity.id}`));
+        } else {
+            activity.id = uuid();
+            createActivity(activity).then(() => navigate(`/activities/${activity.id}`));
+        }
 
-  const handleInputChange = (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    const { name, value } = event.target;
-    setActivity(prevActivity => ({ ...prevActivity, [name]: value }));
-  };
+        activity.id ? updateActivity(activity) : createActivity(activity);
+    };
 
-  return (
-    <Segment clearing>
-      <Form onSubmit={handleSubmit} autoComplete='off'>
-        <Form.Input
-          placeholder='Title'
-          value={activity.title}
-          name='title'
-          onChange={handleInputChange}
-        />
-        <Form.TextArea
-          placeholder='Description'
-          value={activity.description}
-          name='description'
-          onChange={handleInputChange}
-        />
-        <Form.Input
-          placeholder='Category'
-          value={activity.category}
-          name='category'
-          onChange={handleInputChange}
-        />
-        <Form.Input
-          placeholder='Date'
-          type='date'
-          value={activity.date}
-          name='date'
-          onChange={handleInputChange}
-        />
-        <Form.Input
-          placeholder='City'
-          value={activity.city}
-          name='city'
-          onChange={handleInputChange}
-        />
-        <Form.Input
-          placeholder='Venue'
-          value={activity.venue}
-          name='venue'
-          onChange={handleInputChange}
-        />
-        <Button
-          loading={loading}
-          floated='right'
-          positive
-          type='submit'
-          content='Submit'
-        />
-        <Button
-          onClick={closeForm}
-          floated='right'
-          positive
-          type='button'
-          content='Cancel'
-        />
-      </Form>
-    </Segment>
-  );
+    const handleInputChange = (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+        const { name, value } = event.target;
+        setActivity(prevActivity => ({ ...prevActivity, [name]: value }));
+    };
+
+    if (loadingInitial) return <Loading content='Loading activity...' />
+
+    return (
+        <Segment clearing>
+            <Form onSubmit={handleSubmit} autoComplete='off'>
+                <Form.Input
+                    placeholder='Title'
+                    value={activity.title}
+                    name='title'
+                    onChange={handleInputChange}
+                />
+                <Form.TextArea
+                    placeholder='Description'
+                    value={activity.description}
+                    name='description'
+                    onChange={handleInputChange}
+                />
+                <Form.Input
+                    placeholder='Category'
+                    value={activity.category}
+                    name='category'
+                    onChange={handleInputChange}
+                />
+                <Form.Input
+                    placeholder='Date'
+                    type='date'
+                    value={activity.date}
+                    name='date'
+                    onChange={handleInputChange}
+                />
+                <Form.Input
+                    placeholder='City'
+                    value={activity.city}
+                    name='city'
+                    onChange={handleInputChange}
+                />
+                <Form.Input
+                    placeholder='Venue'
+                    value={activity.venue}
+                    name='venue'
+                    onChange={handleInputChange}
+                />
+                <Button
+                    loading={loading}
+                    floated='right'
+                    positive
+                    type='submit'
+                    content='Submit'
+                />
+                <Button
+                    as={Link}
+                    to='/activities'
+                    floated='right'
+                    negative
+                    type='button'
+                    content='Cancel'
+                />
+            </Form>
+        </Segment>
+    );
 });
